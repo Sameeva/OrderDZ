@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPrisma } from "@/lib/db";
 import { formatDA } from "@/lib/money";
+import { wilayaLabel } from "@/lib/wilaya";
 import { placeOrder } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +60,7 @@ export default async function Checkout({
           <select name="wilayaCode" required>
             {wilayas.map((w) => (
               <option key={w} value={w}>
-                {String(w).padStart(2, "0")}
+                {wilayaLabel(w)}
               </option>
             ))}
           </select>

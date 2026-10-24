@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { computeTotals, formatDA } from "./money";
 import { normalizeMobile } from "./phone";
 import { ORDER_STATUSES, allowedTransitions, assertTransition, canTransition } from "./status";
-import { isWilayaCode } from "./wilaya";
+import { courierWilayaCode, isWilayaCode, wilayaLabel, wilayaName } from "./wilaya";
+import { WILAYAS } from "./wilayas";
 
 describe("money", () => {
   it("adds items and delivery in integer centimes", () => {
@@ -51,6 +52,26 @@ describe("order status machine", () => {
   });
   it("never transitions to itself", () => {
     for (const s of ORDER_STATUSES) expect(canTransition(s, s)).toBe(false);
+  });
+});
+
+describe("wilaya names", () => {
+  it("has the 69 wilayas with consecutive codes and both names", () => {
+    expect(WILAYAS.map((w) => w.code)).toEqual(Array.from({ length: 69 }, (_, i) => i + 1));
+    expect(WILAYAS.every((w) => w.nameFr && w.nameAr)).toBe(true);
+  });
+  it("knows the usual ones and the new ones", () => {
+    expect(wilayaName(16)).toBe("Alger");
+    expect(wilayaName(31)).toBe("Oran");
+    expect(wilayaLabel(9)).toBe("09 - Blida");
+    expect(wilayaName(59)).toBe("Aflou");
+    expect(wilayaName(69)).toBe("El Abiodh Sidi Cheikh");
+  });
+  it("gives couriers the mother wilaya for 59-69 only", () => {
+    expect(courierWilayaCode(59)).toBe(3);
+    expect(courierWilayaCode(68)).toBe(28);
+    expect(courierWilayaCode(16)).toBe(16);
+    for (const w of WILAYAS) expect(w.motherCode !== null).toBe(w.code >= 59);
   });
 });
 
