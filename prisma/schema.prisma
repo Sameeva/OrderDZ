@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DeliveryType {
+  DOMICILE
+  STOP_DESK
+}
+
+enum OrderStatus {
+  PENDING
+  NO_ANSWER_1
+  NO_ANSWER_2
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+// All money columns are integer centimes (1 DA = 100). Every tenant table carries storeId;
+// access is restricted per store with Postgres row level security (see docs/architecture.md).
+
+model Store {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @db.Uuid // Supabase auth user
+  name      String   @db.VarChar(255)
+  slug      String   @unique @db.VarChar(100)
+  phone     String?  @db.VarChar(30)
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  products      Product[]
+  orders        Order[]
+  deliveryFees  DeliveryFee[]
+  orderCounters OrderCounter[]
+
+  @@index([ownerId])
+}
+
+model Product {
+  id            String   @id @default(uuid()) @db.Uuid
+  storeId       String   @db.Uuid
+  name          String   @db.VarChar(255)
+  priceCentimes Int
+  stock         Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz()
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+}
+
+// Delivery fee per store, wilaya (01..69) and delivery type.
+model DeliveryFee {
+  id           String       @id @default(uuid()) @db.Uuid
+  storeId      String       @db.Uuid
+  wilayaCode   Int
+  deliveryType DeliveryType
+  feeCentimes  Int
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, wilayaCode, deliveryType])
+}
+
+// Gap-free order numbers per store and year: increment inside the order transaction.
+model OrderCounter {
+  storeId String @db.Uuid
+  year    Int
+  last    Int    @default(0)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, year])
+}
+
+model Order {
+  id            String       @id @default(uuid()) @db.Uuid
+  storeId       String       @db.Uuid
+  number        String       @db.VarChar(30) // CMD-2026-0001
+  customerName  String       @db.VarChar(255)
+  customerPhone String       @db.VarChar(20)
+  wilayaCode    Int
+  commune       String       @db.VarChar(150)
+  address       String?
+  deliveryType  DeliveryType
+  status        OrderStatus  @default(PENDING)
+
+  subtotalCentimes    Int
+  deliveryFeeCentimes Int
+  totalCodCentimes    Int // cash to collect
+
+  trackingCode String?  @db.VarChar(100)
+  callNotes    String?
+  createdAt    DateTime @default(now()) @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @db.Timestamptz()
+
+  store  Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  items  OrderItem[]
+  events OrderEvent[]
+
+  @@unique([storeId, number])
+  @@index([storeId, status])
+  @@index([storeId, customerPhone])
+}
+
+model OrderItem {
+  id                String  @id @default(uuid()) @db.Uuid
+  orderId           String  @db.Uuid
+  productName       String  @db.VarChar(255)
+  variant           String? @db.VarChar(100)
+  quantity          Int     @default(1)
+  unitPriceCentimes Int
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// Append-only history of status changes.
+model OrderEvent {
+  id         String      @id @default(uuid()) @db.Uuid
+  orderId    String      @db.Uuid
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+  actorId    String?     @db.Uuid
+  note       String?
+  createdAt  DateTime    @default(now()) @db.Timestamptz()
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
