@@ -112,6 +112,7 @@ model Order {
 model OrderItem {
   id                String  @id @default(uuid()) @db.Uuid
   orderId           String  @db.Uuid
+  productId         String? @db.Uuid // snapshot below; used to decrement stock at confirmation
   productName       String  @db.VarChar(255)
   variant           String? @db.VarChar(100)
   quantity          Int     @default(1)
