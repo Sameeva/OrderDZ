@@ -8,6 +8,23 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: orderdz
+          POSTGRES_PASSWORD: orderdz
+          POSTGRES_DB: orderdz_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orderdz"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://orderdz:orderdz@localhost:5432/orderdz_test
+      DIRECT_URL: postgresql://orderdz:orderdz@localhost:5432/orderdz_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,5 +32,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx prisma migrate deploy
       - run: npm run check
       - run: npm run build
