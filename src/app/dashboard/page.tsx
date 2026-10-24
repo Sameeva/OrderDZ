@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireOwnerStore } from "@/lib/auth";
 import { getPrisma } from "@/lib/db";
 import { formatDA } from "@/lib/money";
+import { wilayaLabel } from "@/lib/wilaya";
 import { countByStatus, listOrders, whatsappLink } from "@/lib/queue";
 import { ORDER_STATUSES, allowedTransitions, type OrderStatus } from "@/lib/status";
 import { signOut } from "../login/actions";
@@ -63,7 +64,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               WhatsApp
             </a>
             <br />
-            Wilaya {String(o.wilayaCode).padStart(2, "0")}, {o.commune}
+            {wilayaLabel(o.wilayaCode)}, {o.commune}
             {o.address ? `, ${o.address}` : ""} ({o.deliveryType === "DOMICILE" ? "domicile" : "stop desk"})
           </p>
           <ul>
