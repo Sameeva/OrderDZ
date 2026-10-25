@@ -3,9 +3,18 @@ import { createMyStore } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function Setup({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+const MESSAGES: Record<string, string> = {
+  SLUG_TAKEN: "Cet identifiant est déjà pris.",
+  SLUG_RESERVED: "Cet identifiant est réservé.",
+  ALREADY_HAS_STORE: "Vous avez déjà une boutique.",
+  INVALID: "Vérifiez les champs.",
+  ERROR: "Erreur.",
+};
+
+export default async function Setup({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
   await requireUser();
-  const { error } = await searchParams;
+  const { e } = await searchParams;
+  const error = e && Object.hasOwn(MESSAGES, e) ? MESSAGES[e] : undefined;
   return (
     <main style={{ maxWidth: 480, margin: "3rem auto", padding: "0 1rem", fontFamily: "system-ui" }}>
       <h1>Votre boutique</h1>

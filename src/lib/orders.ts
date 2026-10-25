@@ -2,12 +2,21 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { computeTotals } from "./money";
 import { normalizeMobile } from "./phone";
-import { assertTransition, type OrderStatus } from "./status";
+import { canTransition, type OrderStatus } from "./status";
 import { isWilayaCode } from "./wilaya";
 
 export class OrderError extends Error {
   constructor(
-    public code: "STORE_NOT_FOUND" | "PRODUCT_UNAVAILABLE" | "NO_DELIVERY_FEE" | "OUT_OF_STOCK" | "ORDER_NOT_FOUND",
+    public code:
+      | "STORE_NOT_FOUND"
+      | "PRODUCT_UNAVAILABLE"
+      | "NO_DELIVERY_FEE"
+      | "OUT_OF_STOCK"
+      | "ORDER_NOT_FOUND"
+      | "TOO_MANY_ORDERS"
+      | "TOTAL_TOO_HIGH"
+      | "ILLEGAL_TRANSITION"
+      | "CONFLICT",
     message: string,
   ) {
     super(message);
@@ -39,16 +48,62 @@ export const checkoutSchema = z.object({
 });
 export type CheckoutInput = z.input<typeof checkoutSchema>;
 
+/** Largest order total accepted (10 million DA); keeps every money column far from the 32-bit limit. */
+export const MAX_ORDER_CENTIMES = 1_000_000_000;
+
+/**
+ * Public-checkout flood limits, checked in the database so they hold across server instances.
+ * A real customer rarely orders twice in ten minutes; a script floods a store in seconds.
+ */
+export type OrderLimits = { perPhoneWindowMs: number; perPhoneMax: number; perStoreWindowMs: number; perStoreMax: number };
+export const DEFAULT_LIMITS: OrderLimits = {
+  perPhoneWindowMs: 10 * 60_000,
+  perPhoneMax: 3,
+  perStoreWindowMs: 60_000,
+  perStoreMax: 40,
+};
+export const NO_LIMITS: OrderLimits = {
+  perPhoneWindowMs: 0,
+  perPhoneMax: Infinity,
+  perStoreWindowMs: 0,
+  perStoreMax: Infinity,
+};
+
+// Every order of a store updates the same counter row, so a burst queues up; give it room to wait.
+const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const;
+
+/** Statuses in which the order's items are already out of stock (taken at CONFIRMED). */
+const STOCK_TAKEN: readonly OrderStatus[] = ["CONFIRMED", "SHIPPED"];
+
 /**
  * Create an order from a public checkout. Prices and fees always come from the database, never
  * from the client. The number comes from OrderCounter inside the same transaction (no gaps, no
  * duplicates under concurrency).
  */
-export async function createOrder(prisma: PrismaClient, raw: CheckoutInput, now = new Date()) {
+export async function createOrder(
+  prisma: PrismaClient,
+  raw: CheckoutInput,
+  now = new Date(),
+  limits: OrderLimits = DEFAULT_LIMITS,
+) {
   const input = checkoutSchema.parse(raw);
   return prisma.$transaction(async (tx) => {
     const store = await tx.store.findUnique({ where: { slug: input.storeSlug } });
     if (!store) throw new OrderError("STORE_NOT_FOUND", "Boutique introuvable.");
+
+    const since = (ms: number) => new Date(Date.now() - ms);
+    if (Number.isFinite(limits.perPhoneMax)) {
+      const recent = await tx.order.count({
+        where: { storeId: store.id, customerPhone: input.customerPhone, createdAt: { gte: since(limits.perPhoneWindowMs) } },
+      });
+      if (recent >= limits.perPhoneMax) throw new OrderError("TOO_MANY_ORDERS", "Trop de commandes récentes.");
+    }
+    if (Number.isFinite(limits.perStoreMax)) {
+      const burst = await tx.order.count({
+        where: { storeId: store.id, createdAt: { gte: since(limits.perStoreWindowMs) } },
+      });
+      if (burst >= limits.perStoreMax) throw new OrderError("TOO_MANY_ORDERS", "Trop de commandes récentes.");
+    }
 
     const ids = [...new Set(input.items.map((i) => i.productId))];
     const products = await tx.product.findMany({ where: { id: { in: ids }, storeId: store.id, active: true } });
@@ -78,6 +133,7 @@ export async function createOrder(prisma: PrismaClient, raw: CheckoutInput, now 
       lines.map((l) => ({ quantity: l.quantity, unitPriceCentimes: l.product.priceCentimes })),
       fee.feeCentimes,
     );
+    if (totals.totalCodCentimes > MAX_ORDER_CENTIMES) throw new OrderError("TOTAL_TOO_HIGH", "Montant trop élevé.");
 
     const year = now.getUTCFullYear();
     const counter = await tx.orderCounter.upsert({
@@ -110,12 +166,14 @@ export async function createOrder(prisma: PrismaClient, raw: CheckoutInput, now 
       },
       include: { items: true },
     });
-  });
+  }, TX_OPTIONS);
 }
 
 /**
- * Move an order to a new status for one store. Illegal changes throw. Confirming an order takes its
- * items out of stock (all or nothing); every change appends an OrderEvent.
+ * Move an order to a new status for one store. Illegal changes throw. The status is switched with a
+ * compare-and-set first, so two simultaneous changes cannot both win (the loser gets CONFLICT).
+ * Confirming takes the items out of stock (all or nothing); cancelling or returning a confirmed or
+ * shipped order puts them back; every change appends an OrderEvent.
  */
 export async function changeOrderStatus(
   prisma: PrismaClient,
@@ -127,7 +185,15 @@ export async function changeOrderStatus(
       include: { items: true },
     });
     if (!order) throw new OrderError("ORDER_NOT_FOUND", "Commande introuvable.");
-    assertTransition(order.status, args.to);
+    if (!canTransition(order.status, args.to)) {
+      throw new OrderError("ILLEGAL_TRANSITION", `Illegal order status change: ${order.status} -> ${args.to}`);
+    }
+
+    const moved = await tx.order.updateMany({
+      where: { id: order.id, storeId: args.storeId, status: order.status },
+      data: { status: args.to },
+    });
+    if (moved.count !== 1) throw new OrderError("CONFLICT", "La commande vient d'être modifiée.");
 
     if (args.to === "CONFIRMED") {
       for (const item of order.items) {
@@ -138,11 +204,19 @@ export async function changeOrderStatus(
         });
         if (r.count !== 1) throw new OrderError("OUT_OF_STOCK", `Stock insuffisant : ${item.productName}.`);
       }
+    } else if ((args.to === "CANCELLED" || args.to === "RETURNED") && STOCK_TAKEN.includes(order.status)) {
+      for (const item of order.items) {
+        if (!item.productId) continue;
+        await tx.product.updateMany({
+          where: { id: item.productId, storeId: args.storeId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
     }
 
     await tx.orderEvent.create({
       data: { orderId: order.id, fromStatus: order.status, toStatus: args.to, actorId: args.actorId, note: args.note },
     });
-    return tx.order.update({ where: { id: order.id }, data: { status: args.to } });
-  });
+    return tx.order.findUniqueOrThrow({ where: { id: order.id } });
+  }, TX_OPTIONS);
 }

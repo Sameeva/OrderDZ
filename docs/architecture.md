@@ -4,7 +4,7 @@ Next.js (App Router) on Vercel, Supabase Postgres (+ Auth, Realtime), Prisma.
 
 ## Rules
 - Money is integer centimes everywhere (`src/lib/money.ts`).
-- Every tenant table carries `storeId`. Every query filters by the store of the signed-in user; Postgres row level security is the second lock.
+- Every tenant table carries `storeId`. Every query filters by the store of the signed-in user; Row level security is switched on for every table with no policies, so the Supabase public API (anon and authenticated roles) reads nothing; only the server's own database connection reaches the data. Per-store policies are not used, so the app code is the only tenancy lock.
 - Order status changes go through `src/lib/status.ts` and write an `OrderEvent`.
 - Order numbers (`CMD-YYYY-NNNN`) come from `OrderCounter`, incremented in the same transaction as the order (no `MAX+1`).
 - Wilaya codes 01 to 69 (law 26-06 of 4 April 2026).

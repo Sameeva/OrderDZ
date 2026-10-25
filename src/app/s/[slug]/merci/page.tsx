@@ -30,7 +30,7 @@ export default async function Thanks({
   const { n } = await searchParams;
   const store = await getPrisma().store.findUnique({ where: { slug }, select: { name: true, phone: true } });
   if (!store) notFound();
-  const number = n?.slice(0, 40);
+  const number = n && /^CMD-\d{4}-\d{4,}$/.test(n) ? n : undefined;
   const tel = store.phone?.replace(/[^\d+]/g, "");
 
   return (

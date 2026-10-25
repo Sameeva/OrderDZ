@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createPrisma } from "./db";
-import { OrderError, changeOrderStatus, createOrder } from "./orders";
+import { NO_LIMITS, OrderError, changeOrderStatus, createOrder } from "./orders";
 
 // Integration tests: need a migrated Postgres in TEST_DATABASE_URL (skipped otherwise).
 const url = process.env.TEST_DATABASE_URL;
@@ -43,7 +43,7 @@ d("orders (database)", () => {
   });
 
   it("creates an order with server-side prices and a store number", async () => {
-    const o = await createOrder(prisma, checkout(), now);
+    const o = await createOrder(prisma, checkout(), now, NO_LIMITS);
     expect(o.number).toBe("CMD-2026-0001");
     expect(o.customerPhone).toBe("0551234567");
     expect(o.subtotalCentimes).toBe(500_000);
@@ -54,31 +54,31 @@ d("orders (database)", () => {
   });
 
   it("numbers concurrent orders without gaps or duplicates", async () => {
-    const orders = await Promise.all(Array.from({ length: 10 }, () => createOrder(prisma, checkout({ items: [{ productId, quantity: 1 }] }), now)));
+    const orders = await Promise.all(Array.from({ length: 10 }, () => createOrder(prisma, checkout({ items: [{ productId, quantity: 1 }] }), now, NO_LIMITS)));
     const numbers = orders.map((o) => o.number).sort();
     expect(numbers).toEqual(Array.from({ length: 10 }, (_, i) => `CMD-2026-${String(i + 1).padStart(4, "0")}`));
   });
 
   it("rejects bad input and unavailable things", async () => {
-    await expect(createOrder(prisma, checkout({ customerPhone: "021234567" }), now)).rejects.toThrow();
-    await expect(createOrder(prisma, checkout({ wilayaCode: 70 }), now)).rejects.toThrow();
-    await expect(createOrder(prisma, checkout({ storeSlug: "nope" }), now)).rejects.toMatchObject({ code: "STORE_NOT_FOUND" });
-    await expect(createOrder(prisma, checkout({ wilayaCode: 31 }), now)).rejects.toMatchObject({ code: "NO_DELIVERY_FEE" });
-    await expect(createOrder(prisma, checkout({ deliveryType: "STOP_DESK" }), now)).rejects.toMatchObject({ code: "NO_DELIVERY_FEE" });
-    await expect(createOrder(prisma, checkout({ items: [{ productId, quantity: 6 }] }), now)).rejects.toMatchObject({ code: "OUT_OF_STOCK" });
-    await expect(createOrder(prisma, checkout({ items: [{ productId: crypto.randomUUID(), quantity: 1 }] }), now)).rejects.toMatchObject({ code: "PRODUCT_UNAVAILABLE" });
+    await expect(createOrder(prisma, checkout({ customerPhone: "021234567" }), now, NO_LIMITS)).rejects.toThrow();
+    await expect(createOrder(prisma, checkout({ wilayaCode: 70 }), now, NO_LIMITS)).rejects.toThrow();
+    await expect(createOrder(prisma, checkout({ storeSlug: "nope" }), now, NO_LIMITS)).rejects.toMatchObject({ code: "STORE_NOT_FOUND" });
+    await expect(createOrder(prisma, checkout({ wilayaCode: 31 }), now, NO_LIMITS)).rejects.toMatchObject({ code: "NO_DELIVERY_FEE" });
+    await expect(createOrder(prisma, checkout({ deliveryType: "STOP_DESK" }), now, NO_LIMITS)).rejects.toMatchObject({ code: "NO_DELIVERY_FEE" });
+    await expect(createOrder(prisma, checkout({ items: [{ productId, quantity: 6 }] }), now, NO_LIMITS)).rejects.toMatchObject({ code: "OUT_OF_STOCK" });
+    await expect(createOrder(prisma, checkout({ items: [{ productId: crypto.randomUUID(), quantity: 1 }] }), now, NO_LIMITS)).rejects.toMatchObject({ code: "PRODUCT_UNAVAILABLE" });
     expect(await prisma.order.count()).toBe(0);
   });
 
   it("does not sell a product of another store", async () => {
     const other = await prisma.store.create({ data: { ownerId: crypto.randomUUID(), name: "Autre", slug: "autre" } });
     const foreign = await prisma.product.create({ data: { storeId: other.id, name: "X", priceCentimes: 100, stock: 9 } });
-    await expect(createOrder(prisma, checkout({ items: [{ productId: foreign.id, quantity: 1 }] }), now)).rejects.toMatchObject({ code: "PRODUCT_UNAVAILABLE" });
+    await expect(createOrder(prisma, checkout({ items: [{ productId: foreign.id, quantity: 1 }] }), now, NO_LIMITS)).rejects.toMatchObject({ code: "PRODUCT_UNAVAILABLE" });
   });
 
   it("confirming takes stock out, records an event, and cannot oversell", async () => {
-    const a = await createOrder(prisma, checkout({ items: [{ productId, quantity: 3 }] }), now);
-    const b = await createOrder(prisma, checkout({ items: [{ productId, quantity: 3 }] }), now);
+    const a = await createOrder(prisma, checkout({ items: [{ productId, quantity: 3 }] }), now, NO_LIMITS);
+    const b = await createOrder(prisma, checkout({ items: [{ productId, quantity: 3 }] }), now, NO_LIMITS);
     await changeOrderStatus(prisma, { storeId, orderId: a.id, to: "CONFIRMED" });
     expect((await prisma.product.findUniqueOrThrow({ where: { id: productId } })).stock).toBe(2);
     await expect(changeOrderStatus(prisma, { storeId, orderId: b.id, to: "CONFIRMED" })).rejects.toBeInstanceOf(OrderError);
@@ -88,7 +88,7 @@ d("orders (database)", () => {
   });
 
   it("refuses illegal transitions and orders of another store", async () => {
-    const o = await createOrder(prisma, checkout(), now);
+    const o = await createOrder(prisma, checkout(), now, NO_LIMITS);
     await expect(changeOrderStatus(prisma, { storeId, orderId: o.id, to: "DELIVERED" })).rejects.toThrow(/Illegal/);
     await expect(changeOrderStatus(prisma, { storeId: crypto.randomUUID(), orderId: o.id, to: "CANCELLED" })).rejects.toMatchObject({ code: "ORDER_NOT_FOUND" });
   });

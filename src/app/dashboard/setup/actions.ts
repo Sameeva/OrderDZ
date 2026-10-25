@@ -14,9 +14,8 @@ export async function createMyStore(formData: FormData) {
       phone: String(formData.get("phone") ?? "") || undefined,
     });
   } catch (e) {
-    const message =
-      e instanceof StoreError ? e.message : e instanceof Error && e.name === "ZodError" ? "Vérifiez les champs." : "Erreur.";
-    redirect(`/dashboard/setup?error=${encodeURIComponent(message)}`);
+    const code = e instanceof StoreError ? e.code : e instanceof Error && e.name === "ZodError" ? "INVALID" : "ERROR";
+    redirect(`/dashboard/setup?e=${code}`);
   }
   redirect("/dashboard");
 }

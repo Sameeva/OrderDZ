@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createPrisma } from "./db";
-import { createOrder } from "./orders";
+import { NO_LIMITS, createOrder } from "./orders";
 import { countByStatus, listOrders, setCallNote, whatsappLink } from "./queue";
 import { StoreError, createStore, storeSchema } from "./stores";
 
@@ -43,7 +43,7 @@ d("stores and queue (database)", () => {
         commune: "Alger",
         deliveryType: "DOMICILE",
         items: [{ productId: product.id, quantity: 1 }],
-      });
+      }, new Date(), NO_LIMITS);
     return { store, order };
   }
 

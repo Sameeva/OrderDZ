@@ -10,6 +10,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   PRODUCT_UNAVAILABLE: "Ce produit n'est plus disponible.",
   NO_DELIVERY_FEE: "Livraison non disponible pour cette wilaya.",
   OUT_OF_STOCK: "Stock insuffisant.",
+  TOO_MANY_ORDERS: "Trop de commandes en peu de temps. Réessayez dans quelques minutes.",
+  TOTAL_TOO_HIGH: "Le montant de la commande est trop élevé. Réduisez la quantité.",
   ERROR: "Une erreur est survenue, veuillez réessayer.",
 };
 

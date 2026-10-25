@@ -40,6 +40,8 @@ function SubmitButton({ className }: { className: string }) {
   );
 }
 
+const nowMs = () => performance.now();
+
 export function CheckoutForm({ action, products, fees, serverError }: Props) {
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [qty, setQty] = useState(1);
@@ -61,8 +63,14 @@ export function CheckoutForm({ action, products, fees, serverError }: Props) {
   const wilayaBtnRef = useRef<HTMLButtonElement>(null);
   const communeRef = useRef<HTMLInputElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
+  const elapsedRef = useRef<HTMLInputElement>(null);
+  const openedAt = useRef(0);
 
   // Warm the sheet chunk when the browser is idle so the first tap opens it at once.
+  useEffect(() => {
+    openedAt.current = nowMs();
+  }, []);
+
   useEffect(() => {
     const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
     const id = idle ? idle(() => void loadSheet()) : window.setTimeout(() => void loadSheet(), 1500);
@@ -124,6 +132,7 @@ export function CheckoutForm({ action, products, fees, serverError }: Props) {
   };
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (elapsedRef.current) elapsedRef.current.value = String(Math.round(nowMs() - openedAt.current));
     const firstBad = (["name", "phone", "wilaya", "commune"] as const).find((k) => errors[k]);
     if (!firstBad) return;
     e.preventDefault();
@@ -167,6 +176,14 @@ export function CheckoutForm({ action, products, fees, serverError }: Props) {
       noValidate
       className="co"
     >
+      {/* Spam trap: invisible to people, tempting to bots. The server drops orders that fill it or that arrive too fast. */}
+      <div className="co-hp" aria-hidden="true">
+        <label>
+          Site web
+          <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+        </label>
+      </div>
+      <input ref={elapsedRef} type="hidden" name="elapsed" />
       <input type="hidden" name="quantity" value={q} />
       <input type="hidden" name="wilayaCode" value={wilaya ?? ""} />
 

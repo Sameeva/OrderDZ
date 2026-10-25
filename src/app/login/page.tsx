@@ -1,7 +1,15 @@
 import { signIn, signUp } from "./actions";
 
-export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await searchParams;
+const MESSAGES: Record<string, string> = {
+  FIELDS: "E-mail et mot de passe (8 caractères minimum) obligatoires.",
+  BAD_LOGIN: "E-mail ou mot de passe incorrect.",
+  SIGNUP_FAILED: "Inscription impossible. Vérifiez l'e-mail et le mot de passe.",
+  CHECK_EMAIL: "Compte créé. Confirmez votre e-mail puis connectez-vous.",
+};
+
+export default async function Login({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
+  const { e } = await searchParams;
+  const error = e && Object.hasOwn(MESSAGES, e) ? MESSAGES[e] : undefined;
   return (
     <main style={{ maxWidth: 400, margin: "3rem auto", padding: "0 1rem", fontFamily: "system-ui" }}>
       <h1>OrderDZ</h1>

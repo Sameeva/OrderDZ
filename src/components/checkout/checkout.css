@@ -1266,3 +1266,11 @@ dialog.sheet::backdrop {
   direction: ltr;
   unicode-bidi: isolate;
 }
+
+.co-hp {
+  position: absolute;
+  inset-inline-start: -10000px;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+}

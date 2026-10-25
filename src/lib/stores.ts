@@ -30,6 +30,8 @@ export async function createStore(prisma: PrismaClient, ownerId: string, raw: z.
     return await prisma.store.create({ data: { ownerId, ...data } });
   } catch (e) {
     if (typeof e === "object" && e && "code" in e && e.code === "P2002") {
+      const target = JSON.stringify((e as { meta?: { target?: unknown } }).meta?.target ?? "");
+      if (target.includes("ownerId")) throw new StoreError("ALREADY_HAS_STORE", "Vous avez déjà une boutique.");
       throw new StoreError("SLUG_TAKEN", "Cet identifiant est déjà pris.");
     }
     throw e;

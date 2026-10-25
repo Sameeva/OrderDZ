@@ -23,11 +23,13 @@ enum OrderStatus {
 }
 
 // All money columns are integer centimes (1 DA = 100). Every tenant table carries storeId;
-// access is restricted per store with Postgres row level security (see docs/architecture.md).
+// access is restricted per store in the application code (every query filters on storeId). Row level
+// security is switched on for every table with no policies, so the Supabase public API (anon and
+// authenticated roles) can read nothing; only the server's database connection reaches the data.
 
 model Store {
   id        String   @id @default(uuid()) @db.Uuid
-  ownerId   String   @db.Uuid // Supabase auth user
+  ownerId   String   @unique @db.Uuid // Supabase auth user, one store per owner
   name      String   @db.VarChar(255)
   slug      String   @unique @db.VarChar(100)
   phone     String?  @db.VarChar(30)
@@ -38,7 +40,6 @@ model Store {
   deliveryFees  DeliveryFee[]
   orderCounters OrderCounter[]
 
-  @@index([ownerId])
 }
 
 model Product {
