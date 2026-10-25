@@ -1,0 +1,140 @@
+/*
+ * OrderDZ storefront tokens. Identity: "bon de commande" - warm paper, pine ink, zellige teal,
+ * saffron accents. Everything is scoped under .shop so the dashboard and login keep their look.
+ * Logical properties only (RTL-ready). Animate transform/opacity only.
+ */
+:root {
+  /* Light palette */
+  --paper: #f5eee1;
+  --paper-sunk: #ece2cf;
+  --card: #fffbf3;
+  --ink: #1e2b27;
+  --ink-soft: #55625c;
+  --line: #d9cdb6;
+  --line-strong: #b9aa8c;
+  --brand: #0b5a50;
+  --brand-ink: #fff8ea;
+  --brand-soft: #d9ece6;
+  --saffron: #e9a23b;
+  --saffron-soft: #fbeccb;
+  --danger: #b3261e;
+  --danger-soft: #fbe3df;
+  --ok: #1d7a4d;
+  --focus: #0b5a50;
+  --scrim: 20 28 25;
+  --shadow: 0 1px 0 rgb(30 43 39 / 0.04), 0 8px 24px -12px rgb(30 43 39 / 0.25);
+
+  /* Type scale (rem, survives 200% text) */
+  --step--1: 0.875rem;
+  --step-0: 1rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: clamp(1.75rem, 1.4rem + 1.6vw, 2.5rem);
+
+  /* Radii and spacing */
+  --r-sm: 0.625rem;
+  --r-md: 0.875rem;
+  --r-lg: 1.25rem;
+  --r-xl: 1.75rem;
+  --tap: 3rem; /* 48px touch target */
+  --gap: 1rem;
+
+  /* Spring presets. Critically damped (no overshoot): x(t) = 1 - (1 + a*t) * e^(-a*t), a = 11. */
+  --spring-ms: 520ms;
+  --spring: cubic-bezier(0.2, 0.9, 0.25, 1); /* fallback before CSS linear() (Safari < 17.2) */
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring: linear(
+      0, 0.0902, 0.2642, 0.4422, 0.594, 0.7127, 0.8009, 0.8641, 0.9084, 0.9389, 0.9596, 0.9734,
+      0.9826, 0.9887, 0.9927, 0.9953, 0.997, 0.9981, 0.9988, 0.9992, 0.9995, 0.9997, 1
+    );
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #111a18;
+    --paper-sunk: #0c1311;
+    --card: #1a2623;
+    --ink: #f1e9d8;
+    --ink-soft: #a9b5ae;
+    --line: #2d3d38;
+    --line-strong: #46594f;
+    --brand: #3cc4ab;
+    --brand-ink: #05221d;
+    --brand-soft: #173a33;
+    --saffron: #f2b450;
+    --saffron-soft: #3a2f17;
+    --danger: #ff9a90;
+    --danger-soft: #3d1f1c;
+    --ok: #62d49a;
+    --focus: #f2b450;
+    --scrim: 0 0 0;
+    --shadow: 0 1px 0 rgb(255 255 255 / 0.03), 0 8px 24px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --spring-ms: 1ms;
+  }
+}
+
+/* Storefront base */
+.shop,
+.shop *,
+.shop *::before,
+.shop *::after {
+  box-sizing: border-box;
+}
+
+.shop {
+  min-block-size: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: var(--step-0);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overflow-wrap: anywhere;
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+html:has(.shop) {
+  color-scheme: light dark;
+  background: var(--paper);
+}
+
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+.shop :focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+:where(.shop) :is(button, input, textarea) {
+  font: inherit;
+  color: inherit;
+}
+
+:where(.shop) button {
+  touch-action: manipulation;
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
