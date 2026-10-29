@@ -14,5 +14,7 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
+    // the db test files share one database and wipe it in beforeEach, so they must not overlap
+    fileParallelism: false,
   },
 });
